@@ -1,0 +1,9 @@
+{
+  "id": "day-grid",
+  "name": "Day Grid",
+  "version": "1.0.0",
+  "minAppVersion": "1.5.0",
+  "description": "Log Jira tickets into the day sections of a weekly note and copy a day's notes.",
+  "author": "Day Grid contributors",
+  "isDesktopOnly": false
+}

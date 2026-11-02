@@ -1,0 +1,13 @@
+.day-grid { overflow-x: auto; }
+.day-grid table { width: 100%; border-collapse: collapse; font-size: var(--font-ui-small); }
+.day-grid th, .day-grid td { padding: 4px 8px; border-bottom: 1px solid var(--background-modifier-border); text-align: left; }
+.day-grid .day-grid-cell { padding: 2px; text-align: center; width: 3.2em; }
+.day-grid .is-today { background: var(--background-modifier-hover); }
+.day-grid-key { white-space: nowrap; }
+.day-grid-state { white-space: nowrap; color: var(--text-muted); }
+.day-grid button.day-grid-dot { all: unset; display: inline-block; width: 100%; font-size: 1.3em; line-height: 1.5; text-align: center; cursor: pointer; color: var(--text-faint); border-radius: var(--radius-s); }
+.day-grid button.day-grid-dot:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.day-grid button.day-grid-dot:focus-visible { outline: 2px solid var(--interactive-accent); }
+.day-grid button.day-grid-dot.is-on { color: var(--interactive-accent); }
+.day-grid-draft input { width: 100%; }
+.day-grid-status { margin-top: 6px; font-size: var(--font-ui-smaller); color: var(--text-muted); }
