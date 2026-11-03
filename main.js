@@ -177,20 +177,19 @@ class GridView extends MarkdownRenderChild {
         if (!section) { new Notice(`No ${day} section in this note.`); return; }
 
         const existing = parseEntries(lines, section).find((e) => e.key === key);
-        let cursor;
         if (existing) {
-            cursor = { line: existing.lastLine, ch: lines[existing.lastLine].length };
+            // Filled dot: jump to the ticket.
+            const cursor = { line: existing.lastLine, ch: lines[existing.lastLine].length };
+            editor.setCursor(cursor);
+            editor.scrollIntoView({ from: cursor, to: cursor }, true);
+            editor.focus();
         } else {
+            // Empty dot: just write the ticket, leave the cursor where it is.
             const { line, replace } = planInsert(lines, section);
             const block = `- ${PREFIX}${key}\n\t- `;
             if (replace) editor.replaceRange(block, { line, ch: 0 }, { line, ch: lines[line].length });
             else editor.replaceRange(`\n${block}`, { line, ch: lines[line].length });
-            const noteLine = replace ? line + 1 : line + 2;
-            cursor = { line: noteLine, ch: 3 };
         }
-        editor.setCursor(cursor);
-        editor.scrollIntoView({ from: cursor, to: cursor }, true);
-        editor.focus();
         await this.render();
     }
 
