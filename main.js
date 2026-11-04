@@ -95,6 +95,7 @@ class GridView extends MarkdownRenderChild {
         this.options = {};
         try { this.options = parseYaml(source) || {}; } catch (e) { /* shown as a Jira error below */ }
         this.issues = new Map();
+        this.searchKeys = []; // Row order: Jira's result order. The map's insertion order depends on which request lands first.
         this.status = 'Loading tickets…';
         this.draftKey = '';
     }
@@ -136,6 +137,7 @@ class GridView extends MarkdownRenderChild {
             if (!this.options.query) throw new Error('no query in the day-grid block');
             const result = await window.$ji.defaulted.getSearchResults(this.options.query, { limit: this.options.limit || 40, account });
             result.issues.forEach((issue) => this.issues.set(issue.key, issue));
+            this.searchKeys = result.issues.map((issue) => issue.key);
             this.account = account || result.account;
             this.status = '';
         } catch (e) {
@@ -232,7 +234,7 @@ class GridView extends MarkdownRenderChild {
 
         const logged = new Map(sections.map((s) => [s.day, new Set(parseEntries(lines, s).map((e) => e.key).filter(Boolean))]));
         const noteKeys = [...new Set([...logged.values()].flatMap((set) => [...set]))];
-        const keys = [...new Set([...this.issues.keys(), ...noteKeys])];
+        const keys = [...new Set([...this.searchKeys, ...noteKeys])];
         const today = WEEKDAYS[new Date().getDay()];
 
         const table = el.createEl('table');
