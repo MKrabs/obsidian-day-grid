@@ -83,19 +83,15 @@ function daySummary(lines, section, summaryOf = () => '') {
 }
 
 /**
- * Pins startOfWeek()/endOfWeek() in a query to the note's own ISO week, read from a daily-note name like
- * "2026 - Week 45 - Nov". Other names keep the query as is, so Jira resolves those relative to today.
+ * Pins startOfWeek()/endOfWeek() in a query to an ISO week like "2026-W45" (Monday 00:00 to Sunday 23:59).
+ * Without a week the query is left as is, so Jira resolves it relative to today.
  */
-function weekQuery(query, path) {
-    const m = path.match(/(\d{4}) - Week (\d{1,2}) - (\w{3})[^/]*$/);
-    if (!m) return query;
-    let year = Number(m[1]);
-    const week = Number(m[2]);
-    // ponytail: the name holds the calendar year (YYYY), not the ISO year, so fix the New Year week by month; English month names only.
-    if (week === 1 && m[3] === 'Dec') year++;
-    if (week >= 52 && m[3] === 'Jan') year--;
-    const jan4 = Date.UTC(year, 0, 4);
-    const monday = jan4 - ((new Date(jan4).getUTCDay() + 6) % 7) * DAY_MS + (week - 1) * 7 * DAY_MS;
+function weekQuery(query, week) {
+    if (!week) return query;
+    const m = String(week).trim().match(/^(\d{4})-W(\d{1,2})$/);
+    if (!m || Number(m[2]) < 1 || Number(m[2]) > 53) throw new Error(`week "${week}" should look like 2026-W45`);
+    const jan4 = Date.UTC(Number(m[1]), 0, 4);
+    const monday = jan4 - ((new Date(jan4).getUTCDay() + 6) % 7) * DAY_MS + (Number(m[2]) - 1) * 7 * DAY_MS;
     const day = (t) => new Date(t).toISOString().slice(0, 10);
     return query
         .replace(/startOfWeek\(\)/g, `"${day(monday)}"`)
@@ -158,7 +154,7 @@ class GridView extends MarkdownRenderChild {
         this.account = account;
         try {
             if (!this.options.query) throw new Error('no query: set one in Settings → Day Grid');
-            const result = await window.$ji.defaulted.getSearchResults(weekQuery(this.options.query, this.sourcePath), { limit: this.options.limit || 40, account });
+            const result = await window.$ji.defaulted.getSearchResults(weekQuery(this.options.query, this.options.week), { limit: this.options.limit || 40, account });
             result.issues.forEach((issue) => this.issues.set(issue.key, issue));
             this.searchKeys = result.issues.map((issue) => issue.key);
             this.account = account || result.account;
@@ -345,7 +341,7 @@ class DayGridSettingTab extends PluginSettingTab {
         containerEl.empty();
         new Setting(containerEl)
             .setName('Jira query')
-            .setDesc('JQL for the grid rows. In weekly notes, startOfWeek() and endOfWeek() mean that note\'s week.')
+            .setDesc('JQL for the grid rows. With week: 2026-W45 in a note\'s block, startOfWeek() and endOfWeek() mean that week.')
             .addTextArea((t) => t.setValue(settings.query).onChange((v) => { settings.query = v.trim(); save(); }));
         new Setting(containerEl)
             .setName('Limit')
