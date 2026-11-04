@@ -1,4 +1,4 @@
-const { Plugin, MarkdownRenderChild, MarkdownView, Notice, parseYaml, setIcon, debounce } = require('obsidian');
+const { Plugin, PluginSettingTab, Setting, MarkdownRenderChild, MarkdownView, Notice, parseYaml, setIcon, debounce } = require('obsidian');
 
 // ponytail: hardcoded to the Jira plugin's current inlineIssuePrefix, read its setting if that ever changes.
 const PREFIX = 'JIRA:';
@@ -10,6 +10,8 @@ const SECTION_END = /^(#{1,6}\s|-{3,}\s*$|```)/;
 const BULLET = /^(\s*)(?:[-*+]|\d+\.)\s*(?:\[.\]\s*)?(.*)$/;
 const EMPTY_BULLET = /^\s*[-*+]\s*$/;
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DEFAULTS = { query: '', limit: 40, account: '' };
+const DAY_MS = 864e5;
 
 /** Day sections of a note: [{ day, start, end }], where start is the heading line and end is exclusive. */
 function parseDays(lines) {
@@ -80,6 +82,26 @@ function daySummary(lines, section, summaryOf = () => '') {
     return out.join('\n');
 }
 
+/**
+ * Pins startOfWeek()/endOfWeek() in a query to the note's own ISO week, read from a daily-note name like
+ * "2026 - Week 45 - Nov". Other names keep the query as is, so Jira resolves those relative to today.
+ */
+function weekQuery(query, path) {
+    const m = path.match(/(\d{4}) - Week (\d{1,2}) - (\w{3})[^/]*$/);
+    if (!m) return query;
+    let year = Number(m[1]);
+    const week = Number(m[2]);
+    // ponytail: the name holds the calendar year (YYYY), not the ISO year, so fix the New Year week by month; English month names only.
+    if (week === 1 && m[3] === 'Dec') year++;
+    if (week >= 52 && m[3] === 'Jan') year--;
+    const jan4 = Date.UTC(year, 0, 4);
+    const monday = jan4 - ((new Date(jan4).getUTCDay() + 6) % 7) * DAY_MS + (week - 1) * 7 * DAY_MS;
+    const day = (t) => new Date(t).toISOString().slice(0, 10);
+    return query
+        .replace(/startOfWeek\(\)/g, `"${day(monday)}"`)
+        .replace(/endOfWeek\(\)/g, `"${day(monday + 6 * DAY_MS)} 23:59"`);
+}
+
 /** Where a new ticket goes: reuse a trailing empty bullet, otherwise add after the last line with content. */
 function planInsert(lines, section) {
     let last = section.end - 1;
@@ -92,8 +114,9 @@ class GridView extends MarkdownRenderChild {
         super(el);
         this.plugin = plugin;
         this.sourcePath = sourcePath;
-        this.options = {};
-        try { this.options = parseYaml(source) || {}; } catch (e) { /* shown as a Jira error below */ }
+        // Plugin settings are the shared defaults; anything written in the block overrides them for this note.
+        this.options = Object.assign({}, plugin.settings);
+        try { Object.assign(this.options, parseYaml(source) || {}); } catch (e) { /* bad YAML: fall back to the settings */ }
         this.issues = new Map();
         this.searchKeys = []; // Row order: Jira's result order. The map's insertion order depends on which request lands first.
         this.status = 'Loading tickets…';
@@ -134,8 +157,8 @@ class GridView extends MarkdownRenderChild {
         const account = this.options.account ? window.$ji.account.getAccountByAlias(this.options.account) : undefined;
         this.account = account;
         try {
-            if (!this.options.query) throw new Error('no query in the day-grid block');
-            const result = await window.$ji.defaulted.getSearchResults(this.options.query, { limit: this.options.limit || 40, account });
+            if (!this.options.query) throw new Error('no query: set one in Settings → Day Grid');
+            const result = await window.$ji.defaulted.getSearchResults(weekQuery(this.options.query, this.sourcePath), { limit: this.options.limit || 40, account });
             result.issues.forEach((issue) => this.issues.set(issue.key, issue));
             this.searchKeys = result.issues.map((issue) => issue.key);
             this.account = account || result.account;
@@ -308,8 +331,37 @@ class GridView extends MarkdownRenderChild {
     }
 }
 
+// ponytail: open grids keep the old settings until the note is reopened.
+class DayGridSettingTab extends PluginSettingTab {
+    constructor(app, plugin) {
+        super(app, plugin);
+        this.plugin = plugin;
+    }
+
+    display() {
+        const { containerEl } = this;
+        const settings = this.plugin.settings;
+        const save = () => this.plugin.saveData(settings);
+        containerEl.empty();
+        new Setting(containerEl)
+            .setName('Jira query')
+            .setDesc('JQL for the grid rows. In weekly notes, startOfWeek() and endOfWeek() mean that note\'s week.')
+            .addTextArea((t) => t.setValue(settings.query).onChange((v) => { settings.query = v.trim(); save(); }));
+        new Setting(containerEl)
+            .setName('Limit')
+            .setDesc('Most tickets to load.')
+            .addText((t) => t.setValue(String(settings.limit)).onChange((v) => { settings.limit = Number(v) || DEFAULTS.limit; save(); }));
+        new Setting(containerEl)
+            .setName('Jira account')
+            .setDesc('Account alias from the Jira plugin. Empty uses its default account.')
+            .addText((t) => t.setValue(settings.account).onChange((v) => { settings.account = v.trim(); save(); }));
+    }
+}
+
 class DayGridPlugin extends Plugin {
-    onload() {
+    async onload() {
+        this.settings = Object.assign({}, DEFAULTS, await this.loadData());
+        this.addSettingTab(new DayGridSettingTab(this.app, this));
         this.registerMarkdownCodeBlockProcessor('day-grid', (source, el, ctx) => {
             ctx.addChild(new GridView(el, this, source, ctx.sourcePath));
         });
@@ -317,4 +369,4 @@ class DayGridPlugin extends Plugin {
 }
 
 module.exports = DayGridPlugin;
-Object.assign(module.exports, { parseDays, parseEntries, daySummary, planInsert, shortenTitle });
+Object.assign(module.exports, { parseDays, parseEntries, daySummary, planInsert, shortenTitle, weekQuery });
