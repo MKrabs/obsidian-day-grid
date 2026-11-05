@@ -4,7 +4,7 @@ A table at the top of your weekly note that lists your Jira tickets with one dot
 
 ![Day Grid with five tickets logged across Mon–Wed](screenshot.png)
 
-*The grid for [`example.md`](example.md), a sample weekly note with made-up tickets.*
+*The grid for [`example.md`](example.md?plain=1), a sample weekly note with made-up tickets.*
 
 > Draft README.
 
