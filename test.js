@@ -2,7 +2,7 @@
 const Module = require('module'); const assert = require('assert');
 const load = Module._load;
 Module._load = (id, ...r) => id === 'obsidian' ? { Plugin: class {}, PluginSettingTab: class {}, MarkdownRenderChild: class {}, MarkdownView: class {} } : load(id, ...r);
-const { parseDays, gridScope, parseEntries, daySummary, planInsert, shortenTitle, weekQuery, weekMonday, mondayOf, dayCss, templateProblems, templateText, isWeekday } = require('./main.js');
+const { parseDays, gridScope, parseEntries, daySummary, planInsert, shortenTitle, weekQuery, weekMonday, mondayOf, dayCss, templateProblems, templateText, isWeekday, DEFAULT_QUERY } = require('./main.js');
 
 assert.strictEqual(shortenTitle('Short title'), 'Short title');
 assert.strictEqual(shortenTitle('x'.repeat(40)), 'x'.repeat(40));
@@ -137,4 +137,6 @@ assert.deepStrictEqual(parseDays(tpl.split('\n'), days2).map((d) => d.title), ['
 
 // The defaults use full class names, so short "mon" marks only count once the list says so.
 assert.strictEqual(parseDays(['# <mark class="mon">Mon</mark>']).length, 0);
+// The default query works on any Jira and gets pinned to the note's week like any other.
+assert.strictEqual(weekQuery(DEFAULT_QUERY, '2026-W45'), 'assignee = currentUser() AND updated >= "2026-11-02" AND updated <= "2026-11-08 23:59" ORDER BY key');
 console.log('ok');

@@ -38,6 +38,8 @@ function templateText(days) {
     return `\`\`\`day-grid\nweek: {{date:GGGG-[W]WW}}\n\`\`\`\n\n${headings}`;
 }
 const DAY_MS = 864e5;
+// Used when the Query setting is empty, and by its reset button. Works on any Jira: no project or custom fields.
+const DEFAULT_QUERY = 'assignee = currentUser() AND updated >= startOfWeek() AND updated <= endOfWeek() ORDER BY key';
 
 /** Which entry of days a line is the heading for, or -1: a heading holding <mark class="…"> with that class, any case. */
 function dayOf(line, days) {
@@ -242,10 +244,9 @@ class GridView extends MarkdownRenderChild {
         const account = this.options.account ? window.$ji.account.getAccountByAlias(this.options.account) : undefined;
         this.account = account;
         try {
-            if (!this.options.query) throw new Error('no query: set one in Settings → Day Grid');
             // The Jira plugin's own search falls back to 50, not to its "Default search results limit", so read that here.
             const limit = Number(this.options.limit) || (await this.plugin.jiraSettings()).searchResultsLimit;
-            const result = await window.$ji.defaulted.getSearchResults(weekQuery(this.options.query, this.options.week), { limit, account });
+            const result = await window.$ji.defaulted.getSearchResults(weekQuery(this.options.query || DEFAULT_QUERY, this.options.week), { limit, account });
             result.issues.forEach((issue) => this.issues.set(issue.key, issue));
             this.searchKeys = result.issues.map((issue) => issue.key);
             this.account = account || result.account;
@@ -458,7 +459,12 @@ class DayGridSettingTab extends PluginSettingTab {
         const query = new Setting(containerEl)
             .setName('Query')
             .setDesc(queryDesc)
-            .addTextArea((t) => t.setValue(settings.query).onChange((v) => { settings.query = v.trim(); save(); }));
+            .addTextArea((t) => t.setPlaceholder(DEFAULT_QUERY).setValue(settings.query).onChange((v) => { settings.query = v.trim() || DEFAULT_QUERY; save(); }))
+            .addExtraButton((b) => b.setIcon('rotate-ccw').setTooltip('Reset to the default query').onClick(() => {
+                settings.query = DEFAULT_QUERY;
+                save();
+                this.display();
+            }));
         let accountInput;
         new Setting(containerEl)
             .setName('Account')
@@ -533,7 +539,7 @@ class DayGridPlugin extends Plugin {
         const data = (await this.loadData()) || {};
         const days = Array.isArray(data.days) && data.days.every((d) => d && typeof d === 'object') ? data.days : DEFAULT_DAYS;
         // Settings from older versions (limit, dateFormat, days as plain names) are dropped here.
-        this.settings = { query: data.query || '', account: data.account || '', days: days.map((d) => Object.assign({}, d)) };
+        this.settings = { query: data.query || DEFAULT_QUERY, account: data.account || '', days: days.map((d) => Object.assign({}, d)) };
         this.styleEl = document.head.createEl('style');
         this.register(() => this.styleEl.remove());
         this.applyColors();
@@ -581,4 +587,4 @@ class DayGridPlugin extends Plugin {
 }
 
 module.exports = DayGridPlugin;
-Object.assign(module.exports, { parseDays, gridScope, parseEntries, daySummary, planInsert, shortenTitle, weekQuery, weekMonday, mondayOf, dayCss, templateProblems, templateText, isWeekday });
+Object.assign(module.exports, { parseDays, gridScope, parseEntries, daySummary, planInsert, shortenTitle, weekQuery, weekMonday, mondayOf, dayCss, templateProblems, templateText, isWeekday, DEFAULT_QUERY });

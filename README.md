@@ -65,10 +65,11 @@ In **Settings → Daily notes**:
 
 **Jira**
 
-- **Query**: the JQL for the rows, for example:
+- **Query**: the JQL for the rows. The default lists your tickets updated that week, on any Jira:
   ```
-  project = ABC AND assignee = currentUser() AND updated >= startOfWeek() AND updated <= endOfWeek() ORDER BY key
+  assignee = currentUser() AND updated >= startOfWeek() AND updated <= endOfWeek() ORDER BY key
   ```
+  Narrow it as you like, for example with `project = ABC AND …`. The ↺ button next to it brings the default back, and an empty query uses it too.
 - **Account**: an account alias from the Jira Issue plugin. Leave it empty to use its default account, which the placeholder shows.
 
 The grid loads as many tickets as the Jira Issue plugin's **Default search results limit** allows. Raise it there if tickets are missing.
