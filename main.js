@@ -12,15 +12,31 @@ const EMPTY_BULLET = /^\s*[-*+]\s*$/;
 const MARK_CLASS = /<mark\s[^>]*class=["']([^"']*)["']/i;
 const VALID_CLASS = /^[A-Za-z_-][\w-]*$/;
 const VALID_COLOR = /^#[0-9a-f]{3,8}$/i;
-const WEEKDAY_CLASSES = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']; // In Date.getDay() order.
-// A day is a heading with <mark class="cls">; title is its column name in the grid; bg and fg color the mark.
+const WEEKDAY_CLASSES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']; // In Date.getDay() order.
+// A day is a heading with <mark class="cls">; title is its column name in the grid and the text of an empty mark;
+// bg and fg color the mark.
 const DEFAULT_DAYS = [
-    { cls: 'mon', title: 'Mon', bg: '#ab5852', fg: '#ffddd5' },
-    { cls: 'tue', title: 'Tue', bg: '#eadaa0', fg: '#706743' },
-    { cls: 'wed', title: 'Wed', bg: '#d69e49', fg: '#6f4a03' },
-    { cls: 'thu', title: 'Thu', bg: '#838469', fg: '#ffffff' },
-    { cls: 'fri', title: 'Fri', bg: '#476066', fg: '#bfc1c2' },
+    { cls: 'monday', title: 'Mon', bg: '#ab5852', fg: '#ffddd5' },
+    { cls: 'tuesday', title: 'Tue', bg: '#eadaa0', fg: '#706743' },
+    { cls: 'wednesday', title: 'Wed', bg: '#d69e49', fg: '#6f4a03' },
+    { cls: 'thursday', title: 'Thu', bg: '#838469', fg: '#ffffff' },
+    { cls: 'friday', title: 'Fri', bg: '#476066', fg: '#bfc1c2' },
 ];
+
+/** Whether a day class names this weekday, in full ("monday") or short ("mon"), any case. */
+function isWeekday(cls, weekday) {
+    const c = cls.toLowerCase();
+    return c === weekday || c === weekday.slice(0, 3);
+}
+
+/** A Daily notes template with the grid block and an empty-marked heading for each day in the list. */
+function templateText(days) {
+    const headings = days
+        .filter((d) => VALID_CLASS.test(d.cls || ''))
+        .map((d) => `### <mark class="${d.cls}"></mark>\n\n- \n`)
+        .join('\n---\n');
+    return `\`\`\`day-grid\nweek: {{date:GGGG-[W]WW}}\n\`\`\`\n\n${headings}`;
+}
 const DAY_MS = 864e5;
 
 /** Which entry of days a line is the heading for, or -1: a heading holding <mark class="…"> with that class, any case. */
@@ -356,7 +372,7 @@ class GridView extends MarkdownRenderChild {
         const table = el.createEl('table');
         const dayCell = (row, cls) => {
             const cell = row.createEl('td', { cls: 'day-grid-cell' });
-            if (cls.toLowerCase() === today) cell.addClass('is-today');
+            if (today && isWeekday(cls, today)) cell.addClass('is-today');
             return cell;
         };
 
@@ -366,7 +382,7 @@ class GridView extends MarkdownRenderChild {
         head.createEl('th', { text: 'Status' });
         sections.forEach(({ cls, title }) => {
             const th = head.createEl('th', { cls: 'day-grid-cell' });
-            if (cls.toLowerCase() === today) th.addClass('is-today');
+            if (today && isWeekday(cls, today)) th.addClass('is-today');
             th.createEl('mark', { cls, text: title });
         });
 
@@ -482,11 +498,22 @@ class DayGridSettingTab extends PluginSettingTab {
                 }));
             paint();
         });
-        new Setting(containerEl).addButton((b) => b.setButtonText('Add day').onClick(() => {
-            settings.days.push({ cls: '', title: '', bg: '#888888', fg: '#ffffff' });
-            save();
-            this.display();
-        }));
+        new Setting(containerEl)
+            .setDesc('Copy template puts a Daily notes template with the grid and one empty-marked heading per day above on '
+                + 'your clipboard. Paste it into your template file.')
+            .addButton((b) => b.setButtonText('Add day').onClick(() => {
+                settings.days.push({ cls: '', title: '', bg: '#888888', fg: '#ffffff' });
+                save();
+                this.display();
+            }))
+            .addButton((b) => b.setButtonText('Copy template').setCta().onClick(async () => {
+                try {
+                    await navigator.clipboard.writeText(templateText(settings.days));
+                    new Notice('Day Grid template copied.');
+                } catch (e) {
+                    new Notice('Failed to copy to clipboard.');
+                }
+            }));
 
         new Setting(containerEl)
             .setName('Daily notes')
@@ -554,4 +581,4 @@ class DayGridPlugin extends Plugin {
 }
 
 module.exports = DayGridPlugin;
-Object.assign(module.exports, { parseDays, gridScope, parseEntries, daySummary, planInsert, shortenTitle, weekQuery, weekMonday, mondayOf, dayCss, templateProblems });
+Object.assign(module.exports, { parseDays, gridScope, parseEntries, daySummary, planInsert, shortenTitle, weekQuery, weekMonday, mondayOf, dayCss, templateProblems, templateText, isWeekday });

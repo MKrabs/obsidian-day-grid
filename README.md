@@ -25,34 +25,34 @@ Copy `main.js`, `manifest.json` and `styles.css` into `<vault>/.obsidian/plugins
 In **Settings → Daily notes**:
 
 - **Date format**: one with a week in it, so you get one note per week. For example `YYYY - [Week] WW - MMM` gives `2026 - Week 45 - Nov`.
-- **Template file**: a note like this one. Adjust the days and headings as you like:
+- **Template file**: a note like this one. **Settings → Day Grid → Copy template** puts exactly this on your clipboard, built from your Days list. Adjust the headings as you like:
 
   ````
   ```day-grid
   week: {{date:GGGG-[W]WW}}
   ```
 
-  # <mark class="mon"></mark>
+  ### <mark class="monday"></mark>
 
   - 
 
   ---
-  # <mark class="tue"></mark>
+  ### <mark class="tuesday"></mark>
 
   - 
 
   ---
-  # <mark class="wed"></mark>
+  ### <mark class="wednesday"></mark>
 
   - 
 
   ---
-  # <mark class="thu"></mark>
+  ### <mark class="thursday"></mark>
 
   - 
 
   ---
-  # <mark class="fri"></mark>
+  ### <mark class="friday"></mark>
 
   - 
   ````
@@ -79,11 +79,11 @@ A day is a heading with a `<mark>` whose class is in this list. Each row has:
 
 | Field | What it does | Default for Monday |
 |---|---|---|
-| Class | The `class` in `<mark class="…">` | `mon` |
+| Class | The `class` in `<mark class="…">` | `monday` |
 | Title | The column name in the grid, and the text shown in an empty mark | `Mon` |
 | Background, Text | The mark's colors, in your notes and in the grid | `#ab5852`, `#ffddd5` |
 
-Monday to Friday come preset. Change any field, remove a day, or add your own: other languages (`pon`), weekends, or anything else you want a column for. Each row shows a preview of the mark.
+Monday to Friday come preset, with classes `monday` … `friday` and titles `Mon` … `Fri`. Change any field, remove a day, or add your own: other languages (`pon`), weekends, or anything else you want a column for. Each row shows a preview of the mark. **Copy template**, below the list, copies a Daily notes template with one empty-marked heading per day.
 
 ## Usage
 
@@ -101,11 +101,11 @@ Rows follow the order of the query's results. Tickets you logged by hand that th
 
 ### Day headings
 
-- Any heading level works, and the text inside or after the mark is up to you: `# <mark class="thu">Donnerstag</mark> 05.11` is a Thursday column titled `Thu`.
-- An empty mark, `<mark class="thu"></mark>`, shows the day's title without it being written into the note. It must be truly empty: even a space inside shows nothing. The title is only displayed, so it isn't searchable and the Outline pane lists the heading as blank.
+- Any heading level works, and the text inside or after the mark is up to you: `# <mark class="thursday">Donnerstag</mark> 05.11` is a Thursday column titled `Thu`.
+- An empty mark, `<mark class="thursday"></mark>`, shows the day's title without it being written into the note. It must be truly empty: even a space inside shows nothing. The title is only displayed, so it isn't searchable and the Outline pane lists the heading as blank.
 - Headings without a mark, or with a class that isn't in your list, are ignored. `# Notes` won't become a column.
 - A day ends at the next heading, a `---` line or a code fence. Days can be in any order.
-- Today's column is highlighted when the grid shows the current week and the day's class is a weekday abbreviation (`mon` … `sun`).
+- Today's column is highlighted when the grid shows the current week and the day's class is a weekday name, in full or short (`monday` or `mon` … `sunday` or `sun`).
 - A note can hold several weeks: each grid only reads the days between its block and the next `day-grid` block.
 
 ## Development

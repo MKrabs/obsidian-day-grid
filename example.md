@@ -3,21 +3,21 @@
 week: 2026-W45
 ```
 
-# <mark class="mon">Mon</mark>
+### <mark class="monday"></mark>
 
 - JIRA:ABC-101
 - JIRA:ABC-102
 	- 
 
 ---
-# <mark class="tue">Tue</mark>
+### <mark class="tuesday"></mark>
 
 - JIRA:ABC-101
 - JIRA:ABC-102
 	- 
 
 ---
-# <mark class="wed">Wed</mark>
+### <mark class="wednesday"></mark>
 
 - JIRA:ABC-102
 	- Call the new endpoint with the order number in the body
@@ -33,11 +33,11 @@ week: 2026-W45
 	- 
 
 ---
-# <mark class="thu">Thu</mark>
+### <mark class="thursday"></mark>
 
 - 
 
 ---
-# <mark class="fri">Fri</mark>
+### <mark class="friday"></mark>
 
 - 

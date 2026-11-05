@@ -2,14 +2,14 @@
 const Module = require('module'); const assert = require('assert');
 const load = Module._load;
 Module._load = (id, ...r) => id === 'obsidian' ? { Plugin: class {}, PluginSettingTab: class {}, MarkdownRenderChild: class {}, MarkdownView: class {} } : load(id, ...r);
-const { parseDays, gridScope, parseEntries, daySummary, planInsert, shortenTitle, weekQuery, weekMonday, mondayOf, dayCss, templateProblems } = require('./main.js');
+const { parseDays, gridScope, parseEntries, daySummary, planInsert, shortenTitle, weekQuery, weekMonday, mondayOf, dayCss, templateProblems, templateText, isWeekday } = require('./main.js');
 
 assert.strictEqual(shortenTitle('Short title'), 'Short title');
 assert.strictEqual(shortenTitle('x'.repeat(40)), 'x'.repeat(40));
 assert.strictEqual(shortenTitle('Expose widget settings to the public facing API'), 'Expose widget settings to the public…');
 assert.strictEqual(shortenTitle('y'.repeat(50)), 'y'.repeat(40) + '…');
 
-const note = `# <mark class="mon">Mon</mark>
+const note = `# <mark class="monday">Mon</mark>
 
 - JIRA:ABC-101
 	- fixed the search.
@@ -18,12 +18,12 @@ const note = `# <mark class="mon">Mon</mark>
 - 
 
 ---
-# <mark class="tue">Tue</mark>
+# <mark class="tuesday">Tue</mark>
 
 - 
 
 ---
-# <mark class="wed">Wed</mark>
+# <mark class="wednesday">Wed</mark>
 
 - JIRA:ABC-1 inline note
 - mentions JIRA:ABC-2 here
@@ -37,7 +37,7 @@ query: x
 \`\`\``.split('\n');
 
 const days = parseDays(note);
-assert.deepStrictEqual(days.map((d) => [d.day, d.cls, d.title]), [[0, 'mon', 'Mon'], [1, 'tue', 'Tue'], [2, 'wed', 'Wed']]);
+assert.deepStrictEqual(days.map((d) => [d.day, d.cls, d.title]), [[0, 'monday', 'Mon'], [1, 'tuesday', 'Tue'], [2, 'wednesday', 'Wed']]);
 const [mon, tue, wed] = days;
 
 assert.strictEqual(daySummary(note, mon), '- ABC-101\n    - fixed the search.\n    - waiting on review\n- Environment setup');
@@ -45,7 +45,7 @@ assert.strictEqual(daySummary(note, tue), '');
 assert.strictEqual(daySummary(note, wed), '- ABC-1: inline note\n- mentions ABC-2 here\n- Planning\n    - nested with spaces');
 
 const titles = { 'ABC-101': 'Add export button', 'ABC-102': 'Integrate settings view' };
-const sample = `# <mark class="mon">Mon</mark>
+const sample = `# <mark class="monday">Mon</mark>
 
 - JIRA:ABC-101
     -
@@ -71,7 +71,7 @@ assert.deepStrictEqual(parseEntries(note, wed).map((e) => e.key), ['ABC-1', null
 assert.deepStrictEqual(planInsert(note, mon), { line: mon.start + 6, replace: true });
 assert.deepStrictEqual(planInsert(note, tue), { line: tue.start + 2, replace: true });
 assert.deepStrictEqual(planInsert(note, wed), { line: wed.start + 5, replace: false });
-const bare = ['# <mark class="fri">Fri</mark>', '', '---'];
+const bare = ['# <mark class="friday">Fri</mark>', '', '---'];
 assert.deepStrictEqual(planInsert(bare, parseDays(bare)[0]), { line: 0, replace: false });
 assert.strictEqual(parseDays(['# Monday', '## Mon', '# <mark class="other">Mon</mark>', 'x']).length, 0, 'days need a mark with a known class');
 const q = 'updated >= startOfWeek() AND updated <= endOfWeek() ORDER BY key';
@@ -82,7 +82,7 @@ assert.strictEqual(weekQuery(q, undefined), q);
 assert.throws(() => weekQuery(q, '2026-45'));
 
 // Two grids in one note: each owns only the days between its block and the next one. Fri before Thu is fine.
-const h = (d) => `# <mark class="${d.toLowerCase()}">${d}</mark>`;
+const h = (d) => `# <mark class="${{ Mon: "monday", Tue: "tuesday", Wed: "wednesday", Thu: "thursday", Fri: "friday" }[d]}">${d}</mark>`;
 const two = `\n\`\`\`day-grid\nweek: 2026-W46\n\`\`\`\n\n${h('Mon')}\n\n${h('Tue')}\n\n${h('Wed')}\n- JIRA:ABC-123\n    - \n\n${h('Fri')}\n\n${h('Thu')}\n\n\n\`\`\`day-grid\nweek: 2026-W47\n\`\`\`\n\n${h('Mon')}\n\n${h('Tue')}\n\n${h('Wed')}\n\n${h('Fri')}\n\n${h('Thu')}\n`.split('\n');
 const first = gridScope(two, 3);
 const second = gridScope(two, 20);
@@ -124,4 +124,17 @@ assert.deepStrictEqual(templateProblems('', good).map((p) => p.level), ['warning
 const monday = weekMonday('2026-W45');
 assert.strictEqual(mondayOf(new Date(2026, 10, 5)), monday);
 assert.strictEqual(mondayOf(new Date(2026, 10, 8)), monday, 'Sunday ends the ISO week that started on Monday');
+
+// Today matches a day class written in full or short, any case.
+assert.ok(isWeekday('monday', 'monday') && isWeekday('Mon', 'monday') && !isWeekday('montag', 'monday') && !isWeekday('tuesday', 'monday'));
+
+// Copy template: grid block plus one empty-marked heading per usable day, and the grid finds those days again.
+const days2 = [{ cls: 'monday', title: 'Mon' }, { cls: 'bad class', title: 'X' }, { cls: 'friday', title: 'Fri' }];
+const tpl = templateText(days2);
+assert.strictEqual(tpl, '```day-grid\nweek: {{date:GGGG-[W]WW}}\n```\n\n### <mark class="monday"></mark>\n\n- \n\n---\n### <mark class="friday"></mark>\n\n- \n');
+assert.deepStrictEqual(templateProblems('YYYY - [Week] WW', tpl), []);
+assert.deepStrictEqual(parseDays(tpl.split('\n'), days2).map((d) => d.title), ['Mon', 'Fri']);
+
+// The defaults use full class names, so short "mon" marks only count once the list says so.
+assert.strictEqual(parseDays(['# <mark class="mon">Mon</mark>']).length, 0);
 console.log('ok');
