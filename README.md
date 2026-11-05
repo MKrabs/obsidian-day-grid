@@ -12,6 +12,7 @@ A table at the top of your weekly note that lists your Jira tickets with one dot
 
 - **Obsidian** 1.5 or later.
 - **[Jira Issue](https://github.com/marc0l92/obsidian-jira-issue)** community plugin, installed, enabled and connected to your Jira account. Day Grid uses it to search Jira and to show `JIRA:ABC-123` links. Its inline issue prefix must be `JIRA:` (the default).
+- **Daily notes** core plugin, set up to make one note per week from a template (see below).
 
 ## Install
 
@@ -19,49 +20,72 @@ Copy `main.js`, `manifest.json` and `styles.css` into `<vault>/.obsidian/plugins
 
 ## Setup
 
-**Settings → Day Grid**, shared by every note:
+### 1. Weekly notes
 
-- **Jira query**: the JQL for the rows, for example:
+In **Settings → Daily notes**:
+
+- **Date format**: one with a week in it, so you get one note per week. For example `YYYY - [Week] WW - MMM` gives `2026 - Week 45 - Nov`.
+- **Template file**: a note like this one. Adjust the days and headings as you like:
+
+  ````
+  ```day-grid
+  week: {{date:GGGG-[W]WW}}
+  ```
+
+  # <mark class="mon">Mon</mark>
+
+  - 
+
+  ---
+  # <mark class="tue">Tue</mark>
+
+  - 
+
+  ---
+  # <mark class="wed">Wed</mark>
+
+  - 
+
+  ---
+  # <mark class="thu">Thu</mark>
+
+  - 
+
+  ---
+  # <mark class="fri">Fri</mark>
+
+  - 
+  ````
+
+  Daily notes fills in `{{date:GGGG-[W]WW}}` with the week, like `2026-W45`, when it creates the note.
+
+**Settings → Day Grid → Daily notes** checks this setup and tells you what's missing.
+
+### 2. Settings → Day Grid
+
+**Jira**
+
+- **Query**: the JQL for the rows, for example:
   ```
   project = ABC AND assignee = currentUser() AND updated >= startOfWeek() AND updated <= endOfWeek() ORDER BY key
   ```
-- **Limit**: the most tickets to load (default 40).
-- **Jira account**: an account alias from the Jira Issue plugin. Leave it empty to use its default account.
-- **Days**: the heading name for each weekday, in any language (`Mon`, `Pon`, `Monday`…). Leave a day empty to skip it. Monday to Friday are on by default.
-- **Date after the name**: optional. A [moment.js format](https://momentjs.com/docs/#/displaying/format/) such as `DD.MM` makes new headings read `Thu 05.11`.
+- **Account**: an account alias from the Jira Issue plugin. Leave it empty to use its default account, which the placeholder shows.
+
+The grid loads as many tickets as the Jira Issue plugin's **Default search results limit** allows. Raise it there if tickets are missing.
+
+**Days**
+
+A day is a heading with a `<mark>` whose class is in this list. Each row has:
+
+| Field | What it does | Default for Monday |
+|---|---|---|
+| Class | The `class` in `<mark class="…">` | `mon` |
+| Title | The column name in the grid | `Mon` |
+| Background, Text | The mark's colors, in your notes and in the grid | `#ab5852`, `#ffddd5` |
+
+Monday to Friday come preset. Change any field, remove a day, or add your own: other languages (`pon`), weekends, or anything else you want a column for. Each row shows a preview of the mark.
 
 ## Usage
-
-Put an empty grid block in any note:
-
-````
-```day-grid
-```
-````
-
-and click **Add days below**. The plugin writes this week's number into the block and a heading for each of your days under it:
-
-````
-```day-grid
-week: 2026-W45
-```
-
-# Mon
-
-- 
-
----
-# Tue
-…
-````
-
-- `week` sets the ISO week the grid covers. `startOfWeek()` and `endOfWeek()` in the query then mean that week's Monday 00:00 and Sunday 23:59, so old notes keep showing their own tickets. Without it, the grid follows the current week.
-- `query`, `limit` and `account` can also go in the block. They override the shared settings for that grid only.
-- A note can hold several weeks: each grid only reads the days between its block and the next `day-grid` block.
-
-**Want the grid in every new weekly note?** Put the block in your own weekly template. With the core Templates or Daily notes plugin, `week: {{date:GGGG-[W]WW}}` fills in the week when the note is created. Or leave the block empty and click Add days below.
-
-In the grid:
 
 - **Empty dot**: adds `- JIRA:KEY` under that day's heading.
 - **Filled dot**: jumps to the ticket's entry for that day.
@@ -70,8 +94,19 @@ In the grid:
 
 Rows follow the order of the query's results. Tickets you logged by hand that the query didn't return come last.
 
-A day heading is a level-1 heading that starts with one of your day names: `# Thu`, `# thu`, `# Thu 05.11` and `# <mark class="thu">Thu</mark>` all count. The days can be in any order. A day ends at the next heading, a `---` line or a code fence. The plugin colors `<mark class="mon">` … `<mark class="sun">` by weekday, and today's column is highlighted when the grid shows the current week.
+### The grid block
+
+- `week` sets the ISO week the grid covers. `startOfWeek()` and `endOfWeek()` in the query then mean that week's Monday 00:00 and Sunday 23:59, so old notes keep showing their own tickets. Without it, the grid follows the current week.
+- `query`, `limit` and `account` can also go in the block. They override the settings for that grid only.
+
+### Day headings
+
+- Any heading level works, and the text inside or after the mark is up to you: `# <mark class="thu">Donnerstag</mark> 05.11` is a Thursday column titled `Thu`.
+- Headings without a mark, or with a class that isn't in your list, are ignored. `# Notes` won't become a column.
+- A day ends at the next heading, a `---` line or a code fence. Days can be in any order.
+- Today's column is highlighted when the grid shows the current week and the day's class is a weekday abbreviation (`mon` … `sun`).
+- A note can hold several weeks: each grid only reads the days between its block and the next `day-grid` block.
 
 ## Development
 
-`node test.js` runs the self-checks for the note parsing, grid scopes, day names and week calculation.
+`node test.js` runs the self-checks for the note parsing, grid scopes, day list, colors, Daily notes check and week calculation.

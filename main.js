@@ -1,4 +1,4 @@
-const { Plugin, PluginSettingTab, Setting, MarkdownRenderChild, MarkdownView, Notice, parseYaml, setIcon, debounce, moment } = require('obsidian');
+const { Plugin, PluginSettingTab, Setting, MarkdownRenderChild, MarkdownView, Notice, parseYaml, setIcon, debounce } = require('obsidian');
 
 // ponytail: hardcoded to the Jira plugin's current inlineIssuePrefix, read its setting if that ever changes.
 const PREFIX = 'JIRA:';
@@ -9,36 +9,72 @@ const SECTION_END = /^(#{1,6}\s|-{3,}\s*$|```)/;
 const GRID_BLOCK = /^```day-grid\s*$/;
 const BULLET = /^(\s*)(?:[-*+]|\d+\.)\s*(?:\[.\]\s*)?(.*)$/;
 const EMPTY_BULLET = /^\s*[-*+]\s*$/;
-// Index 0 is Monday throughout: the order of the day settings, the mark classes and ISO weeks.
-const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const MARK_CLASSES = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
-// days: the heading name for each weekday, Monday first; an empty name skips that day.
-const DEFAULTS = { query: '', limit: 40, account: '', days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', '', ''], dateFormat: '' };
+const MARK_CLASS = /<mark\s[^>]*class=["']([^"']*)["']/i;
+const VALID_CLASS = /^[A-Za-z_-][\w-]*$/;
+const VALID_COLOR = /^#[0-9a-f]{3,8}$/i;
+const WEEKDAY_CLASSES = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']; // In Date.getDay() order.
+// A day is a heading with <mark class="cls">; title is its column name in the grid; bg and fg color the mark.
+const DEFAULT_DAYS = [
+    { cls: 'mon', title: 'Mon', bg: '#ab5852', fg: '#ffddd5' },
+    { cls: 'tue', title: 'Tue', bg: '#eadaa0', fg: '#706743' },
+    { cls: 'wed', title: 'Wed', bg: '#d69e49', fg: '#6f4a03' },
+    { cls: 'thu', title: 'Thu', bg: '#838469', fg: '#ffffff' },
+    { cls: 'fri', title: 'Fri', bg: '#476066', fg: '#bfc1c2' },
+];
 const DAY_MS = 864e5;
 
-/** Which weekday a line is a heading for (0 = Monday), or -1. "# Thu", "# <mark>Thu</mark> 05.11" and "# thu" all match "Thu". */
-function dayOf(line, names) {
-    const m = line.match(/^#\s+(.*)$/);
+/** Which entry of days a line is the heading for, or -1: a heading holding <mark class="…"> with that class, any case. */
+function dayOf(line, days) {
+    if (!/^#{1,6}\s/.test(line)) return -1;
+    const m = line.match(MARK_CLASS);
     if (!m) return -1;
-    const text = m[1].replace(/<\/?mark[^>]*>/g, '').trim().toLowerCase();
-    return names.findIndex((n) => n && (text === n.toLowerCase() || text.startsWith(`${n.toLowerCase()} `)));
+    const classes = m[1].toLowerCase().split(/\s+/);
+    return days.findIndex((d) => d.cls && classes.includes(d.cls.toLowerCase()));
 }
 
 /**
- * Day sections between lines from and to: [{ day, name, start, end }], where day is the weekday (0 = Monday),
+ * Day sections between lines from and to: [{ day, cls, title, start, end }], where day is the index in days,
  * start is the heading line and end is exclusive.
  */
-function parseDays(lines, names = DEFAULTS.days, from = 0, to = lines.length) {
-    const days = [];
+function parseDays(lines, days = DEFAULT_DAYS, from = 0, to = lines.length) {
+    const sections = [];
     for (let i = from; i < to; i++) {
-        const day = dayOf(lines[i], names);
+        const day = dayOf(lines[i], days);
         if (day < 0) continue;
         let end = i + 1;
         while (end < to && !SECTION_END.test(lines[end])) end++;
-        days.push({ day, name: names[day], start: i, end });
+        sections.push({ day, cls: days[day].cls, title: days[day].title || days[day].cls, start: i, end });
         i = end - 1;
     }
-    return days;
+    return sections;
+}
+
+/** CSS giving each day's mark its colors and marker shape. Entries with an unusable class or color are left out. */
+function dayCss(days) {
+    const ok = days.filter((d) => VALID_CLASS.test(d.cls || '') && VALID_COLOR.test(d.bg || '') && VALID_COLOR.test(d.fg || ''));
+    if (!ok.length) return '';
+    const sel = (d) => `mark[class~="${d.cls}" i]`;
+    return ok.map((d) => `${sel(d)} { background-color: ${d.bg}; color: ${d.fg}; }`).join('\n')
+        + `\nmark:is(${ok.map(sel).join(', ')}) { padding: 0.1em 0.4em; border-radius: 0.3em; `
+        + '-webkit-box-decoration-break: clone; box-decoration-break: clone; }';
+}
+
+/**
+ * What's wrong with a Daily notes setup for Day Grid, judged from its date format and template text:
+ * [{ level: 'error' | 'warning', text }]. Empty means fine.
+ */
+function templateProblems(format, template) {
+    const problems = [];
+    const block = template.match(/^```day-grid[ \t]*\n([\s\S]*?)^```/m);
+    if (!block) problems.push({ level: 'error', text: 'The template has no ```day-grid block, so new notes get no grid.' });
+    else if (!/^week:/m.test(block[1])) {
+        problems.push({ level: 'warning', text: 'The day-grid block has no "week: {{date:GGGG-[W]WW}}" line, so old notes will show the current week.' });
+    }
+    // Moment week tokens are w and W; text in [brackets] is literal.
+    if (!/[wW]/.test((format || 'YYYY-MM-DD').replace(/\[[^\]]*\]/g, ''))) {
+        problems.push({ level: 'warning', text: `The date format "${format || 'YYYY-MM-DD'}" has no week (W or WW), so you get a new note every day.` });
+    }
+    return problems;
 }
 
 /** The lines a grid owns: from just below its block (which ends at blockEnd) to the next day-grid block or the end. */
@@ -130,22 +166,6 @@ function mondayOf(date) {
     return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) - ((date.getDay() + 6) % 7) * DAY_MS;
 }
 
-/** The ISO week of a Monday timestamp, written like "2026-W45". */
-function isoWeek(monday) {
-    const thursday = new Date(monday + 3 * DAY_MS);
-    const year = thursday.getUTCFullYear();
-    const week = Math.floor((thursday - Date.UTC(year, 0, 1)) / (7 * DAY_MS)) + 1;
-    return `${year}-W${String(week).padStart(2, '0')}`;
-}
-
-/** Headings for a new week: each named day, optionally followed by its date via formatDate(utcTimestamp). */
-function dayHeadings(names, monday, formatDate) {
-    return names
-        .map((name, i) => name && `# <mark class="${MARK_CLASSES[i]}">${name}</mark>${formatDate ? ` ${formatDate(monday + i * DAY_MS)}` : ''}\n\n- \n`)
-        .filter(Boolean)
-        .join('\n---\n');
-}
-
 /** Where a new ticket goes: reuse a trailing empty bullet, otherwise add after the last line with content. */
 function planInsert(lines, section) {
     let last = section.end - 1;
@@ -203,7 +223,9 @@ class GridView extends MarkdownRenderChild {
         this.account = account;
         try {
             if (!this.options.query) throw new Error('no query: set one in Settings → Day Grid');
-            const result = await window.$ji.defaulted.getSearchResults(weekQuery(this.options.query, this.options.week), { limit: this.options.limit || 40, account });
+            // The Jira plugin's own search falls back to 50, not to its "Default search results limit", so read that here.
+            const limit = Number(this.options.limit) || (await this.plugin.jiraSettings()).searchResultsLimit;
+            const result = await window.$ji.defaulted.getSearchResults(weekQuery(this.options.query, this.options.week), { limit, account });
             result.issues.forEach((issue) => this.issues.set(issue.key, issue));
             this.searchKeys = result.issues.map((issue) => issue.key);
             this.account = account || result.account;
@@ -254,21 +276,6 @@ class GridView extends MarkdownRenderChild {
         return parseDays(lines, this.plugin.settings.days, from, to);
     }
 
-    /** Writes the configured day headings below the block, and this week's number when the block has none. */
-    async addDays() {
-        const end = this.blockEnd();
-        const editor = await this.editor();
-        if (!editor) return;
-        if (end === null) { new Notice('Could not find this grid in the note.'); return; }
-        const { days, dateFormat } = this.plugin.settings;
-        const monday = weekMonday(this.options.week || '') ?? mondayOf(new Date());
-        const headings = dayHeadings(days, monday, dateFormat ? (t) => moment.utc(t).format(dateFormat) : null);
-        if (!headings) { new Notice('No days set: add some in Settings → Day Grid.'); return; }
-        editor.replaceRange(`\n\n${headings}`, { line: end, ch: editor.getLine(end).length });
-        // Below the insert above, so its position is still right.
-        if (!this.options.week) editor.replaceRange(`week: ${isoWeek(monday)}\n`, { line: end, ch: 0 });
-    }
-
     async logTicket(key, index) {
         const end = this.blockEnd();
         const editor = await this.editor();
@@ -302,7 +309,7 @@ class GridView extends MarkdownRenderChild {
             return issue && issue.fields.summary ? shortenTitle(issue.fields.summary) : '';
         };
         const summary = section ? daySummary(lines, section, summaryOf) : '';
-        const name = section ? section.name : 'that day';
+        const name = section ? section.title : 'that day';
         if (!summary) { new Notice(`Nothing logged for ${name}.`); return; }
         try {
             await navigator.clipboard.writeText(summary);
@@ -328,8 +335,10 @@ class GridView extends MarkdownRenderChild {
         el.empty();
         el.addClass('day-grid');
         if (!sections.length) {
-            const empty = el.createDiv({ cls: 'day-grid-status', text: 'No days below this grid yet. ' });
-            empty.createEl('button', { text: 'Add days below' }).addEventListener('click', () => this.addDays());
+            el.createDiv({
+                cls: 'day-grid-status',
+                text: 'No days below this grid. A day is a heading with a <mark class="…"> from Settings → Day Grid → Days, like # <mark class="mon">Mon</mark>.',
+            });
             return;
         }
 
@@ -338,12 +347,12 @@ class GridView extends MarkdownRenderChild {
         const keys = [...new Set([...this.searchKeys, ...noteKeys])];
         // Only highlight today when this grid is for the current week.
         const weekStart = this.options.week ? weekMonday(this.options.week) : mondayOf(new Date());
-        const today = weekStart === mondayOf(new Date()) ? (new Date().getDay() + 6) % 7 : -1;
+        const today = weekStart === mondayOf(new Date()) ? WEEKDAY_CLASSES[new Date().getDay()] : null;
 
         const table = el.createEl('table');
-        const dayCell = (row, day) => {
+        const dayCell = (row, cls) => {
             const cell = row.createEl('td', { cls: 'day-grid-cell' });
-            if (day === today) cell.addClass('is-today');
+            if (cls.toLowerCase() === today) cell.addClass('is-today');
             return cell;
         };
 
@@ -351,10 +360,10 @@ class GridView extends MarkdownRenderChild {
         head.createEl('th', { text: 'Ticket' });
         head.createEl('th', { text: 'Summary' });
         head.createEl('th', { text: 'Status' });
-        sections.forEach(({ day, name }) => {
+        sections.forEach(({ cls, title }) => {
             const th = head.createEl('th', { cls: 'day-grid-cell' });
-            if (day === today) th.addClass('is-today');
-            th.createEl('mark', { cls: MARK_CLASSES[day], text: name });
+            if (cls.toLowerCase() === today) th.addClass('is-today');
+            th.createEl('mark', { cls, text: title });
         });
 
         const body = table.createEl('tbody');
@@ -370,12 +379,12 @@ class GridView extends MarkdownRenderChild {
             }
             row.createEl('td', { cls: 'day-grid-summary', text: issue ? issue.fields.summary : '' });
             row.createEl('td', { cls: 'day-grid-state', text: issue && issue.fields.status ? issue.fields.status.name : '' });
-            sections.forEach(({ day, name }, i) => {
+            sections.forEach(({ cls, title }, i) => {
                 const on = logged[i].has(key);
-                const button = dayCell(row, day).createEl('button', {
+                const button = dayCell(row, cls).createEl('button', {
                     cls: on ? 'day-grid-dot is-on' : 'day-grid-dot',
                     text: on ? '●' : '·',
-                    attr: { 'aria-label': on ? `Go to ${key} on ${name}` : `Log ${key} on ${name}`, 'aria-pressed': String(on) },
+                    attr: { 'aria-label': on ? `Go to ${key} on ${title}` : `Log ${key} on ${title}`, 'aria-pressed': String(on) },
                 });
                 button.addEventListener('click', () => this.logTicket(key, i));
             });
@@ -389,18 +398,18 @@ class GridView extends MarkdownRenderChild {
         });
         input.value = this.draftKey;
         input.addEventListener('input', () => { this.draftKey = input.value; });
-        sections.forEach(({ day, name }, i) => {
-            const button = dayCell(draft, day).createEl('button', {
-                cls: 'day-grid-dot', text: '+', attr: { 'aria-label': `Log typed ticket on ${name}` },
+        sections.forEach(({ cls, title }, i) => {
+            const button = dayCell(draft, cls).createEl('button', {
+                cls: 'day-grid-dot', text: '+', attr: { 'aria-label': `Log typed ticket on ${title}` },
             });
             button.addEventListener('click', () => this.logDraft(i));
         });
 
         const copy = table.createEl('tfoot').createEl('tr');
         copy.createEl('td', { text: 'Copy day', attr: { colspan: '3' } });
-        sections.forEach(({ day, name }, i) => {
-            const button = dayCell(copy, day).createEl('button', {
-                cls: 'clickable-icon', attr: { 'aria-label': `Copy notes for ${name}` },
+        sections.forEach(({ cls, title }, i) => {
+            const button = dayCell(copy, cls).createEl('button', {
+                cls: 'clickable-icon', attr: { 'aria-label': `Copy notes for ${title}` },
             });
             setIcon(button, 'copy');
             button.addEventListener('click', () => this.copyDay(i, button));
@@ -411,7 +420,7 @@ class GridView extends MarkdownRenderChild {
     }
 }
 
-// ponytail: open grids keep the old settings until the note is reopened.
+// ponytail: open grids keep the old query, account and day titles until the note is reopened; colors apply at once.
 class DayGridSettingTab extends PluginSettingTab {
     constructor(app, plugin) {
         super(app, plugin);
@@ -419,48 +428,126 @@ class DayGridSettingTab extends PluginSettingTab {
     }
 
     display() {
-        const { containerEl } = this;
-        const settings = this.plugin.settings;
-        const save = () => this.plugin.saveData(settings);
+        const { containerEl, plugin } = this;
+        const settings = plugin.settings;
+        const save = () => plugin.saveSettings();
         containerEl.empty();
-        new Setting(containerEl)
-            .setName('Jira query')
-            .setDesc('JQL for the grid rows. With week: 2026-W45 in a note\'s block, startOfWeek() and endOfWeek() mean that week.')
+
+        new Setting(containerEl).setName('Jira').setHeading();
+        const queryDesc = 'JQL for the grid rows. With week: 2026-W45 in a note\'s block, startOfWeek() and endOfWeek() mean that week.';
+        const query = new Setting(containerEl)
+            .setName('Query')
+            .setDesc(queryDesc)
             .addTextArea((t) => t.setValue(settings.query).onChange((v) => { settings.query = v.trim(); save(); }));
+        let accountInput;
         new Setting(containerEl)
-            .setName('Limit')
-            .setDesc('Most tickets to load.')
-            .addText((t) => t.setValue(String(settings.limit)).onChange((v) => { settings.limit = Number(v) || DEFAULTS.limit; save(); }));
-        new Setting(containerEl)
-            .setName('Jira account')
-            .setDesc('Account alias from the Jira plugin. Empty uses its default account.')
-            .addText((t) => t.setValue(settings.account).onChange((v) => { settings.account = v.trim(); save(); }));
+            .setName('Account')
+            .setDesc('Account alias from the Jira Issue plugin. Leave empty to use its default account.')
+            .addText((t) => { accountInput = t.inputEl; t.setValue(settings.account).onChange((v) => { settings.account = v.trim(); save(); }); });
+        plugin.jiraSettings().then((jira) => {
+            const accounts = (jira.accounts || []).slice().sort((a, b) => (a.priority || 0) - (b.priority || 0));
+            if (!plugin.jiraPlugin()) accountInput.placeholder = 'Jira Issue plugin not found';
+            else if (accounts[0]) accountInput.placeholder = `Default: ${accounts[0].alias}`;
+            if (jira.searchResultsLimit) {
+                query.setDesc(`${queryDesc} Loads up to ${jira.searchResultsLimit} tickets, the Jira Issue plugin's "Default search results limit".`);
+            }
+        });
 
         new Setting(containerEl)
             .setName('Days')
-            .setDesc('The day headings in your notes, in any language. Leave a day empty to skip it. '
-                + 'A heading counts as that day when it starts with the name, so "# Thu 05.11" matches Thu.')
+            .setDesc('A day in a note is a heading with a <mark> using one of these classes, like # <mark class="mon">Mon</mark>. '
+                + 'Each row: class, title in the grid, background color, text color.')
             .setHeading();
-        WEEKDAY_NAMES.forEach((weekday, i) => new Setting(containerEl)
-            .setName(weekday)
-            .addText((t) => t.setPlaceholder('Skipped').setValue(settings.days[i]).onChange((v) => { settings.days[i] = v.trim(); save(); })));
+        settings.days.forEach((day, i) => {
+            const row = new Setting(containerEl);
+            const sample = row.nameEl.createEl('mark');
+            const paint = () => {
+                sample.setText(day.title || day.cls || 'New day');
+                Object.assign(sample.style, { backgroundColor: day.bg, color: day.fg, padding: '0.1em 0.4em', borderRadius: '0.3em' });
+                row.setDesc(VALID_CLASS.test(day.cls || '') ? '' : 'Class needs letters, digits, - or _ only.');
+            };
+            const change = (key) => (v) => { day[key] = v.trim(); paint(); save(); };
+            row.addText((t) => t.setPlaceholder('class').setValue(day.cls).onChange(change('cls')))
+                .addText((t) => t.setPlaceholder('Title').setValue(day.title).onChange(change('title')))
+                .addColorPicker((c) => c.setValue(day.bg).onChange(change('bg')))
+                .addColorPicker((c) => c.setValue(day.fg).onChange(change('fg')))
+                .addExtraButton((b) => b.setIcon('trash').setTooltip('Remove this day').onClick(() => {
+                    settings.days.splice(i, 1);
+                    save();
+                    this.display();
+                }));
+            paint();
+        });
+        new Setting(containerEl).addButton((b) => b.setButtonText('Add day').onClick(() => {
+            settings.days.push({ cls: '', title: '', bg: '#888888', fg: '#ffffff' });
+            save();
+            this.display();
+        }));
+
         new Setting(containerEl)
-            .setName('Date after the name')
-            .setDesc('Used by "Add days below". A moment.js format such as DD.MM gives "Thu 05.11". Empty adds no date.')
-            .addText((t) => t.setPlaceholder('DD.MM').setValue(settings.dateFormat).onChange((v) => { settings.dateFormat = v.trim(); save(); }));
+            .setName('Daily notes')
+            .setDesc('Day Grid is made for weekly notes created by the Daily notes core plugin from a template that holds the grid.')
+            .setHeading();
+        const status = containerEl.createDiv({ cls: 'day-grid-setup', text: 'Checking…' });
+        plugin.dailyNotesProblems().then((problems) => {
+            status.empty();
+            if (!problems.length) status.createDiv({ cls: 'is-ok', text: '✓ Daily notes is set up for Day Grid.' });
+            problems.forEach((p) => status.createDiv({ cls: `is-${p.level}`, text: `${p.level === 'error' ? '✗' : '⚠'} ${p.text}` }));
+        });
     }
 }
 
 class DayGridPlugin extends Plugin {
     async onload() {
-        this.settings = Object.assign({}, DEFAULTS, await this.loadData());
-        this.settings.days = [...this.settings.days]; // Own copy, so editing it never changes DEFAULTS.
+        const data = (await this.loadData()) || {};
+        const days = Array.isArray(data.days) && data.days.every((d) => d && typeof d === 'object') ? data.days : DEFAULT_DAYS;
+        // Settings from older versions (limit, dateFormat, days as plain names) are dropped here.
+        this.settings = { query: data.query || '', account: data.account || '', days: days.map((d) => Object.assign({}, d)) };
+        this.styleEl = document.head.createEl('style');
+        this.register(() => this.styleEl.remove());
+        this.applyColors();
         this.addSettingTab(new DayGridSettingTab(this.app, this));
         this.registerMarkdownCodeBlockProcessor('day-grid', (source, el, ctx) => {
             ctx.addChild(new GridView(el, this, source, ctx));
         });
     }
+
+    applyColors() {
+        this.styleEl.textContent = dayCss(this.settings.days);
+    }
+
+    saveSettings() {
+        this.applyColors();
+        return this.saveData(this.settings);
+    }
+
+    // ponytail: app.plugins and app.internalPlugins aren't public API, but they're how plugins reach each other's settings.
+    jiraPlugin() {
+        return this.app.plugins && this.app.plugins.plugins['obsidian-jira-issue'];
+    }
+
+    /** The Jira Issue plugin's saved settings (accounts, searchResultsLimit…), or {} when it isn't there. */
+    async jiraSettings() {
+        try {
+            const jira = this.jiraPlugin();
+            return (jira && await jira.loadData()) || {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    /** What keeps Daily notes from making weekly notes with a grid: [{ level, text }], empty when it's fine. */
+    async dailyNotesProblems() {
+        const daily = this.app.internalPlugins && this.app.internalPlugins.getPluginById('daily-notes');
+        if (!daily) return [{ level: 'warning', text: 'Could not check Daily notes on this version of Obsidian.' }];
+        if (!daily.enabled) return [{ level: 'error', text: 'Daily notes is off. Turn it on in Settings → Core plugins.' }];
+        const { format, template } = (daily.instance && daily.instance.options) || {};
+        if (!template) return [{ level: 'error', text: 'Daily notes has no template. Set one in Settings → Daily notes.' }];
+        const file = this.app.metadataCache.getFirstLinkpathDest(template, '');
+        if (!file) return [{ level: 'error', text: `The Daily notes template "${template}" doesn't exist.` }];
+        return templateProblems(format, await this.app.vault.cachedRead(file));
+    }
 }
 
 module.exports = DayGridPlugin;
-Object.assign(module.exports, { parseDays, gridScope, parseEntries, daySummary, planInsert, shortenTitle, weekQuery, weekMonday, mondayOf, isoWeek, dayHeadings });
+Object.assign(module.exports, { parseDays, gridScope, parseEntries, daySummary, planInsert, shortenTitle, weekQuery, weekMonday, mondayOf, dayCss, templateProblems });
