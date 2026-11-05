@@ -11,3 +11,18 @@
 .day-grid button.day-grid-dot.is-on { color: var(--interactive-accent); }
 .day-grid-draft input { width: 100%; }
 .day-grid-status { margin-top: 6px; font-size: var(--font-ui-smaller); color: var(--text-muted); }
+
+/* Weekday markers, in day headings and the grid header. The class is the weekday, whatever the day is named. */
+mark.mon { background-color: #ab5852; color: #ffddd5; }
+mark.tue { background-color: #eadaa0; color: #706743; }
+mark.wed { background-color: #d69e49; color: #6f4a03; }
+mark.thu { background-color: #838469; color: #ffffff; }
+mark.fri { background-color: #476066; color: #bfc1c2; }
+mark.sat { background-color: #7a6a8c; color: #efe6f7; }
+mark.sun { background-color: #5b7a99; color: #e3edf7; }
+mark:is(.mon, .tue, .wed, .thu, .fri, .sat, .sun) {
+  padding: 0.1em 0.4em;
+  border-radius: 0.3em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
