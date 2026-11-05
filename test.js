@@ -107,6 +107,10 @@ assert.ok(css.startsWith('mark[class~="mon" i] { background-color: #ab5852; colo
 assert.ok(!css.includes('x"]') && !css.includes('tue'));
 assert.ok(css.includes('mark:is(mark[class~="mon" i])'));
 assert.strictEqual(dayCss([]), '');
+// Empty marks show the title (or the class when there's none), escaped so it can't break out of the CSS string.
+assert.ok(css.includes('mark[class~="mon" i]:empty::before { content: "mon"; }'));
+assert.ok(dayCss([{ cls: 'mon', title: 'Montag', bg: '#000', fg: '#fff' }]).includes(':empty::before { content: "Montag"; }'));
+assert.ok(dayCss([{ cls: 'mon', title: 'a"b\\c\n}', bg: '#000', fg: '#fff' }]).includes('content: "a\\"b\\\\c }"; }'));
 
 // Daily notes check: an error for no grid block, warnings for no week line or a daily format.
 const good = '```day-grid\nweek: {{date:GGGG-[W]WW}}\n```\n\n# <mark class="mon">Mon</mark>\n';

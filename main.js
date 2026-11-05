@@ -49,12 +49,16 @@ function parseDays(lines, days = DEFAULT_DAYS, from = 0, to = lines.length) {
     return sections;
 }
 
-/** CSS giving each day's mark its colors and marker shape. Entries with an unusable class or color are left out. */
+/**
+ * CSS giving each day's mark its colors and marker shape, and showing the day's title in an empty mark
+ * (<mark class="mon"></mark>) without writing it into the note. Entries with an unusable class or color are left out.
+ */
 function dayCss(days) {
     const ok = days.filter((d) => VALID_CLASS.test(d.cls || '') && VALID_COLOR.test(d.bg || '') && VALID_COLOR.test(d.fg || ''));
     if (!ok.length) return '';
     const sel = (d) => `mark[class~="${d.cls}" i]`;
-    return ok.map((d) => `${sel(d)} { background-color: ${d.bg}; color: ${d.fg}; }`).join('\n')
+    const text = (d) => `"${(d.title || d.cls).replace(/[\\"]/g, '\\$&').replace(/\s+/g, ' ')}"`;
+    return ok.map((d) => `${sel(d)} { background-color: ${d.bg}; color: ${d.fg}; }\n${sel(d)}:empty::before { content: ${text(d)}; }`).join('\n')
         + `\nmark:is(${ok.map(sel).join(', ')}) { padding: 0.1em 0.4em; border-radius: 0.3em; `
         + '-webkit-box-decoration-break: clone; box-decoration-break: clone; }';
 }
