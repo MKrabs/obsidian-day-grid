@@ -2,6 +2,10 @@
 
 A table at the top of your weekly note that lists your Jira tickets with one dot per weekday. Click a dot to log the ticket under that day, then copy a whole day's notes for your stand-up or timesheet.
 
+![Day Grid with five tickets logged across Mon–Wed](screenshot.png)
+
+*The grid for [`example.md`](example.md), a sample weekly note with made-up tickets.*
+
 > Draft README.
 
 ## Prerequisites
