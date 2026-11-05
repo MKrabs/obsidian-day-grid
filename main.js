@@ -39,6 +39,8 @@ function templateText(days) {
 }
 const DAY_MS = 864e5;
 // Used when the Query setting is empty, and by its reset button. Works on any Jira: no project or custom fields.
+const JQL_DOCS = 'https://support.atlassian.com/jira-software-cloud/docs/use-advanced-search-with-jira-query-language-jql/';
+const JQL_FUNCTIONS = 'https://support.atlassian.com/jira-software-cloud/docs/jql-functions/';
 const DEFAULT_QUERY = 'assignee = currentUser() AND updated >= startOfWeek() AND updated <= endOfWeek() ORDER BY key';
 
 /** Which entry of days a line is the heading for, or -1: a heading holding <mark class="…"> with that class, any case. */
@@ -455,10 +457,17 @@ class DayGridSettingTab extends PluginSettingTab {
         containerEl.empty();
 
         new Setting(containerEl).setName('Jira').setHeading();
-        const queryDesc = 'JQL for the grid rows. With week: 2026-W45 in a note\'s block, startOfWeek() and endOfWeek() mean that week.';
+        const queryDesc = (limit) => createFragment((f) => {
+            f.appendText('JQL for the grid rows: see ');
+            f.createEl('a', { text: 'how to write JQL', href: JQL_DOCS });
+            f.appendText(' and ');
+            f.createEl('a', { text: 'JQL functions', href: JQL_FUNCTIONS });
+            f.appendText('. With week: 2026-W45 in a note\'s block, startOfWeek() and endOfWeek() mean that week.');
+            if (limit) f.appendText(` Loads up to ${limit} tickets, the Jira Issue plugin's "Default search results limit".`);
+        });
         const query = new Setting(containerEl)
             .setName('Query')
-            .setDesc(queryDesc)
+            .setDesc(queryDesc())
             .addTextArea((t) => t.setPlaceholder(DEFAULT_QUERY).setValue(settings.query).onChange((v) => { settings.query = v.trim() || DEFAULT_QUERY; save(); }))
             .addExtraButton((b) => b.setIcon('rotate-ccw').setTooltip('Reset to the default query').onClick(() => {
                 settings.query = DEFAULT_QUERY;
@@ -475,7 +484,7 @@ class DayGridSettingTab extends PluginSettingTab {
             if (!plugin.jiraPlugin()) accountInput.placeholder = 'Jira Issue plugin not found';
             else if (accounts[0]) accountInput.placeholder = `Default: ${accounts[0].alias}`;
             if (jira.searchResultsLimit) {
-                query.setDesc(`${queryDesc} Loads up to ${jira.searchResultsLimit} tickets, the Jira Issue plugin's "Default search results limit".`);
+                query.setDesc(queryDesc(jira.searchResultsLimit));
             }
         });
 

@@ -69,7 +69,7 @@ In **Settings → Daily notes**:
   ```
   assignee = currentUser() AND updated >= startOfWeek() AND updated <= endOfWeek() ORDER BY key
   ```
-  Narrow it as you like, for example with `project = ABC AND …`. The ↺ button next to it brings the default back, and an empty query uses it too.
+  Narrow it as you like, for example with `project = ABC AND …`. The ↺ button next to it brings the default back, and an empty query uses it too. Atlassian's guides explain [how to write JQL](https://support.atlassian.com/jira-software-cloud/docs/use-advanced-search-with-jira-query-language-jql/) and list the [JQL functions](https://support.atlassian.com/jira-software-cloud/docs/jql-functions/) such as `currentUser()` and `startOfWeek()`. The same links are in the setting's description.
 - **Account**: an account alias from the Jira Issue plugin. Leave it empty to use its default account, which the placeholder shows.
 
 The grid loads as many tickets as the Jira Issue plugin's **Default search results limit** allows. Raise it there if tickets are missing.
