@@ -16,7 +16,13 @@ A table at the top of your weekly note that lists your Jira tickets with one dot
 
 ## Install
 
-Copy `main.js`, `manifest.json` and `styles.css` into `<vault>/.obsidian/plugins/day-grid/`, then turn on **Day Grid** under Settings → Community plugins.
+**With BRAT** (gets updates automatically):
+
+1. Install and enable **BRAT** from Obsidian's community plugins.
+2. Run the command **BRAT: Add a beta plugin for testing** and enter `MKrabs/obsidian-day-grid`.
+3. Turn on **Day Grid** under Settings → Community plugins.
+
+**By hand:** download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/MKrabs/obsidian-day-grid/releases/latest) into `<vault>/.obsidian/plugins/day-grid/`, then turn on **Day Grid** under Settings → Community plugins.
 
 ## Setup
 
