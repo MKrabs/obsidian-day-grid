@@ -16,11 +16,11 @@ A table at the top of your weekly note that lists your Jira tickets with one dot
 
 ## Install
 
-**With BRAT** (gets updates automatically):
+**With BRAT** (updates automatically):
 
-1. Install and enable **BRAT** from Obsidian's community plugins.
-2. Run the command **BRAT: Add a beta plugin for testing** and enter `MKrabs/obsidian-day-grid`.
-3. Turn on **Day Grid** under Settings → Community plugins.
+1. Install the [BRAT plugin](obsidian://show-plugin?id=obsidian42-brat) ([web page](https://community.obsidian.md/plugins/obsidian42-brat)).
+2. Go to **Settings → BRAT → Beta plugins** and click **Add beta plugin**.
+3. Enter `MKrabs/obsidian-day-grid`, pick the latest version and click **Add plugin**. Day Grid shows up in the list.
 
 **By hand:** download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/MKrabs/obsidian-day-grid/releases/latest) into `<vault>/.obsidian/plugins/day-grid/`, then turn on **Day Grid** under Settings → Community plugins.
 
@@ -28,44 +28,14 @@ A table at the top of your weekly note that lists your Jira tickets with one dot
 
 ### 1. Weekly notes
 
-In **Settings → Daily notes**:
+1. **Settings → Daily notes → Date format**: use one with a week in it, like `YYYY - [Week] WW - MMM` (gives `2026 - Week 45 - Nov`).
+2. Create an empty note in any folder, for example `templates/Weekly.md`, and pick it as the **Template file location**.
+3. **Settings → Day Grid → Copy template**, then paste it into that note. Write whatever you like above the grid or after the last day. Start the part after the last day with a heading or `---`, or it counts as part of that day.
+4. Try it: click **Open today's daily note** in the ribbon, or run the command with the same name.
 
-- **Date format**: one with a week in it, so you get one note per week. For example `YYYY - [Week] WW - MMM` gives `2026 - Week 45 - Nov`.
-- **Template file**: a note like this one. **Settings → Day Grid → Copy template** puts exactly this on your clipboard, built from your Days list. Adjust the headings as you like:
+   ![The "Open today's daily note" button in the ribbon](daily-note-button.png)
 
-  ````
-  ```day-grid
-  week: {{date:GGGG-[W]WW}}
-  ```
-
-  ### <mark class="monday"></mark>
-
-  - 
-
-  ---
-  ### <mark class="tuesday"></mark>
-
-  - 
-
-  ---
-  ### <mark class="wednesday"></mark>
-
-  - 
-
-  ---
-  ### <mark class="thursday"></mark>
-
-  - 
-
-  ---
-  ### <mark class="friday"></mark>
-
-  - 
-  ````
-
-  Daily notes fills in `{{date:GGGG-[W]WW}}` with the week, like `2026-W45`, when it creates the note. The marks are empty on purpose: Day Grid shows each day's title in them (see Days below), so renaming a day never means editing notes.
-
-**Settings → Day Grid → Daily notes** checks this setup and tells you what's missing.
+If you want, **Settings → Day Grid → Daily notes** checks the setup.
 
 ### 2. Settings → Day Grid
 
@@ -75,7 +45,12 @@ In **Settings → Daily notes**:
   ```
   assignee = currentUser() AND updated >= startOfWeek() AND updated <= endOfWeek() ORDER BY key
   ```
-  Narrow it as you like, for example with `project = ABC AND …`. The ↺ button next to it brings the default back, and an empty query uses it too. Atlassian's guides explain [how to write JQL](https://support.atlassian.com/jira-software-cloud/docs/use-advanced-search-with-jira-query-language-jql/) and list the [JQL functions](https://support.atlassian.com/jira-software-cloud/docs/jql-functions/) such as `currentUser()` and `startOfWeek()`. The same links are in the setting's description.
+  Narrow it as you like, for example with `project = ABC AND …`. ↺ brings the default back. Atlassian explains [how to write JQL](https://support.atlassian.com/jira-software-cloud/docs/use-advanced-search-with-jira-query-language-jql/) and the [JQL functions](https://support.atlassian.com/jira-software-cloud/docs/jql-functions/).
+
+  If you'd like to copy my query, here it is. It also finds tickets where I'm the implementer, which is a custom field in our Jira:
+  ```
+  project = ABC AND (assignee = currentUser() OR Implementer = currentUser()) AND updated >= startOfWeek() AND updated <= endOfWeek() ORDER BY key
+  ```
 - **Account**: an account alias from the Jira Issue plugin. Leave it empty to use its default account, which the placeholder shows.
 
 The grid loads as many tickets as the Jira Issue plugin's **Default search results limit** allows. Raise it there if tickets are missing.
