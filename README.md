@@ -11,7 +11,7 @@ A table at the top of your weekly note that lists your Jira tickets with one dot
 ## Prerequisites
 
 - **Obsidian** 1.5 or later.
-- **[Jira Issue](https://github.com/marc0l92/obsidian-jira-issue)** community plugin, installed, enabled and connected to your Jira account. Day Grid uses it to search Jira and to show `JIRA:ABC-123` links. Its inline issue prefix must be `JIRA:` (the default).
+- **[Jira Issue](https://github.com/Obsidian-jira-plugin/obsidian-jira-issue)** community plugin, installed, enabled and connected to your Jira account. Day Grid uses it to search Jira and to show `JIRA:ABC-123` links. Its inline issue prefix must be `JIRA:` (the default).
 - **Daily notes** core plugin, set up to make one note per week from a template (see below).
 
 ## Install
