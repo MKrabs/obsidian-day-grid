@@ -3,7 +3,7 @@
   "name": "Day Grid",
   "version": "1.0.0",
   "minAppVersion": "1.5.0",
-  "description": "Log Jira tickets into the day sections of a weekly note and copy a day's notes.",
+  "description": "Your Jira tickets as a weekly grid in Obsidian. Built on top of the Jira Issue plugin.",
   "author": "Day Grid contributors",
   "isDesktopOnly": false
 }
